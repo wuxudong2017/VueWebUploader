@@ -1,38 +1,53 @@
 <template>
   <div class="w-upload">
     <div id="thelist" class="uploader-list"></div>
-    <div :id="id">选择大文件</div>
+    <div :id="id" class="upload_btn">选择大文件</div>
+    <el-button v-if="!autoUpload" size="mini" @click="start" :loading="uploadLoading" type="success">上传到服务器</el-button>
     <div class="el-upload__tip">{{tip}}</div>
-    <ul class="el-upload-list el-upload-list--text" v-if="filesList.length">
-      <li class="el-upload-list__item is-success" v-for="(item,index) in filesList" :key="index">
+    <ul class="el-upload-list el-upload-list--text" v-if="fileList.length">
+      <li class="el-upload-list__item is-success" v-for="(item,index) in fileList" :key="index">
         <a class="el-upload-list__item-name">
           <i class="el-icon-document"></i>
           <span> {{item.title}}</span>
           <span v-if="item.status!=='uploaded'" class="status">{{item.status}}</span>
           <span v-else class="status success">上传成功</span>
-          <i class="el-icon-circle-close" style="float:right" @click.prevent="deletes(index, item.file)"></i>
+          <i class="el-icon-circle-close" style="float:right" @click.prevent="remove(index, item)"></i>
         </a>
-        <el-progress v-if="item.status === '上传中'|| item.status=== '切片中'" :percentage="item.percentage" :show-text="false"></el-progress>
+        <el-progress v-if="item.status === '上传中'|| item.status=== '切片中'" :percentage="item.percentage"
+          :show-text="false"></el-progress>
       </li>
     </ul>
   </div>
 </template>
 
 <script>
+  import './js/jquery'
+  import './js/webupload/webuploader'
   export default {
-    name: "WebUpload",
-    model: {
-      prop: 'responseData',
-      event: 'change'
-    },
+    name: "VueWebUpload",
     data() {
       return {
         uploader: "",
-        filesList: [],
         fileNum: 0,
+        uploadLoading: false, // 上传加载效果
       };
     },
     props: {
+      headers:{
+        type:Object,
+        required:false,
+        default:()=>({})
+      },
+      autoUpload: {
+        type: Boolean,
+        default: true,
+        required: false
+      },
+      fileList: {
+        type: Array,
+        required: false,
+        default: () => ([])
+      },
       fileNumLimit: {
         type: Number,
         default: 10,
@@ -47,11 +62,6 @@
         type: String,
         default: 'picker',
         required: false,
-      },
-      responseData: {
-        type: Array,
-        required: true,
-        default: () => ([])
       },
       chunkSize: {
         type: Number,
@@ -73,9 +83,16 @@
       },
       sizeLimit: {
         type: Number,
-        default: 500 * 1024 * 1024
+        default: 1 * 1024 * 1024
       },
-
+      onSuccess: {
+        type: Function,
+        required: false,
+      },
+      onRemove:{
+        type:Function,
+        required:false
+      }
     },
     mounted() {
       // HOOK 这个必须要再uploader实例化前面
@@ -93,7 +110,7 @@
             .progress(
               function (percentage) {
                 // 及时显示进度
-                this.filesList.forEach(item => {
+                this.fileList.forEach(item => {
                   if (file.id === item.id) {
                     item.percentage = (percentage.toFixed(2) * 100)
                     item.status = "切片中"
@@ -105,7 +122,7 @@
               function (val) {
                 // 完成
                 console.log("md5 result:", val);
-                this.filesList.forEach(item => {
+                this.fileList.forEach(item => {
                   if (file.id === item.id) {
                     item.percentage = 100
                     item.status = "切片完成";
@@ -119,7 +136,7 @@
                 // 进行md5判断
                 $.ajax({
                   headers: {
-                    'Authorization': '111'
+                    ...this.headers
                   },
                   type: 'GET',
                   data: {
@@ -133,17 +150,24 @@
                     if (status == 100) {
                       // 文件不存在，那就正常流程
                     } else if (status == 101) {
-                      this.responseData.push(data.data.uploadResult);
-                      this.$emit('change', this.responseData)
+                       this.fileList.forEach(item => {
+                          if (file.id === item.id) {
+                            item.percentage = 100
+                            item.status = "上传成功";
+                            item.response=data
+                          }
+                        })
+                        this.uploadLoading = false;
                       // 忽略上传过程，直接标识上传成功；
                       this.uploader.skipFile(file);
                       file.pass = true;
+                      this.onSuccess(data, file, this.fileList)
                     } else if (status == 102) {
                       // 部分已经上传到服务器了，但是差几个模块。
                       file.missChunks = data.chunkCurr;
                     }
                   }.bind(this),
-                  error:function(){
+                  error: function () {
                     this.$message.error('上传失败')
                   }.bind(this)
                 })
@@ -191,12 +215,12 @@
         },
         //dnd: '#dndArea',
         //paste: '#uploader',
-        swf: "/public/js/webupload/Uploader.swf",
+        swf: "./js/webupload/Uploader.swf",
         chunked: true,
         chunkSize: this.chunkSize, // 字节 1M分块
         threads: 1,
         server: this.uploadUrl,
-        auto: true,
+        auto: this.autoUpload,
         // 是否开启多选
         multiple: true,
         // 禁掉全局的拖拽功能。这样不会出现图片拖进页面的时候，把图片打开。
@@ -209,38 +233,46 @@
       this.w_init();
     },
     methods: {
-      // 删除列表
-      deletes(index,file) {
-        this.filesList.splice(index, 1);
-        if(file){
-            this.uploader.removeFile(file, true);
-        }
-        this.responseData.splice(index, 1);
-        this.$emit('change',this.responseData)
-      },
       w_init() {
+        // 当有文件添加对内
+        this.uploader.on('beforeFileQueued', function (file) {
+          if (this.filesList.length < this.fileNumLimit) {
+            return true
+          } else {
+
+            return false;
+          }
+        }.bind(this))
+        // 文件添加队列前
+         this.uploader.on("fileQueued",function (file) {
+           if(this.fileList.length>this.fileNumLimit){
+             this.$message({
+               type:'error',
+               message:'超出上传文件限制'
+             })
+             return false;
+           }
+           return true;
+         }.bind(this))
+
         // 当有文件被添加进队列的时候
-        this.uploader.on(
-          "fileQueued",
-          function (file) {
+        this.uploader.on("fileQueued",function (file) {
             console.log("fileQueued");
-            this.filesList.push({
+            this.fileList.push({
               id: file.id,
               title: file.name,
               size: file.size,
               percentage: 0,
               status: '',
+              raw:file
+              
             });
-            this.fileNum = this.filesList.length;
-
           }.bind(this)
         );
 
         //当某个文件的分块在发送前触发，主要用来询问是否要添加附带参数，大文件在开起分片上传的前提下此事件可能会触发多次。
         this.uploader.onUploadBeforeSend = function (obj, data, headers) {
-          $.extend(headers, {
-            "Authorization": '111'
-          });
+          $.extend(headers, this.headers);
           console.log("onUploadBeforeSend");
           var file = obj.file;
           data.md5 = file.md5 || "";
@@ -249,10 +281,8 @@
           data.chunks = obj.chunks
         };
         // 上传中
-        this.uploader.on(
-          "uploadProgress",
-          function (file, percentage) {
-            this.filesList.forEach(item => {
+        this.uploader.on("uploadProgress",function (file, percentage) {
+            this.fileList.forEach(item => {
               if (file.id === item.id) {
                 item.percentage = (percentage.toFixed(2) * 100)
                 item.status = "上传中"
@@ -261,20 +291,20 @@
           }.bind(this)
         );
         // 上传返回结果
-        this.uploader.on(
-          "uploadSuccess",
-          function (file, response) {
-            this.filesList.forEach(item => {
+        this.uploader.on("uploadSuccess",function (file, response) {
+            this.fileList.forEach(item => {
               if (file.id === item.id) {
                 item.percentage = 100
                 item.status = "上传成功";
+                if(response){
+                  item.response=response
+                }
               }
-
             })
-            if (response && response.code == 0) {
-              // 进行后台返回数据处理
-              this.responseData.push(response.data);
-              this.$emit('change',this.responseData)
+            this.uploadLoading = false;
+ 
+            if (response) {
+              this.onSuccess(response, file, this.fileList)
             }
             this.$message({
               type: "success",
@@ -283,10 +313,8 @@
 
           }.bind(this)
         );
-        this.uploader.on(
-          "uploadError",
-          function (file) {
-            this.filesList.forEach(item => {
+        this.uploader.on("uploadError",function (file) {
+            this.fileList.forEach(item => {
               if (file.id === item.id) {
                 item.percentage = 100
                 item.status = "上传失败";
@@ -297,29 +325,155 @@
               type: "error"
             });
           }.bind(this)
+          
         );
+          //文件校验格式和大小
+        this.uploader.on('error', function (type) {
+          if (type == 'Q_EXCEED_SIZE_LIMIT') {
+            this.$message({
+              message: '文件超过指定大小',
+              type: 'error'
+            });
+          }
+          if (type == 'Q_TYPE_DENIED') {
+            this.$message({
+              message: '文件格式错误，请选择文件',
+              type: 'error'
+            });
+          }
+          if (type == 'F_EXCEED_SIZE') {
+            this.$message({
+              message: "文件超过" + this.sizeLimit / 1024 / 1024 + "M",
+              type: 'error'
+            });
+          }
+        }.bind(this));
         this.uploader.on("uploadComplete", function (file) {
+          
 
-        });
+        }.bind(this));
+      },
+      // 上传开始方法
+      start() {
+        const fileList = this.uploader.getFiles()
+        if (fileList.length > 0) {
+          fileList.forEach(item => {
+            this.uploader.upload(item.id);
+            this.uploadLoading = true;
+          })
+        } else {
+          this.$message.error('请选择上传文件')
+        }
+      },
+      // 删除列表
+      remove(index, file) {
+        if(file.id){
+          this.uploader.removeFile(file.id, true);
+        }
+        this.fileList.splice(index, 1);
+        this.onRemove(index,file,this.fileList);
+        this.uploader.reset();
       },
     },
-    watch:{
-      responseData:{
-        handler(val){
-          if(val.length==0){
-            this.filesList=[]
-            }else{
-            this.filesList = val.filter(item=>item.url)
-          };
-
-        },
-        immediate:true
-      }
-    }
   };
 </script>
 
-<style scoped>
+<style>
+ .webuploader-container {
+    position: relative;
+  }
+
+  .webuploader-element-invisible {
+    position: absolute !important;
+    clip: rect(1px 1px 1px 1px);
+    /* IE6, IE7 */
+    clip: rect(1px, 1px, 1px, 1px);
+  }
+
+  .webuploader-pick {
+    position: relative;
+    display: inline-block;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #dcdfe6;
+    color: #606266;
+    -webkit-appearance: none;
+    text-align: center;
+    box-sizing: border-box;
+    outline: none;
+    margin: 0;
+    transition: .1s;
+    font-weight: 500;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    padding: 12px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    color: #fff;
+    background-color: #409eff;
+    border-color: #409eff;
+    padding: 7px 15px;
+    font-size: 12px;
+    border-radius: 3px;
+  }
+
+  .webuploader-pick-hover {
+    background: #66b1ff;
+    border-color: #66b1ff;
+    color: #fff;
+  }
+
+  .webuploader-pick-disable {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .el-upload__tip {
+    font-size: 12px;
+    color: #606266;
+    margin-top: 7px;
+  }
+
+  .el-upload-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .el-upload-list__item {
+    -webkit-transition: all .5s cubic-bezier(.55, 0, .1, 1);
+    transition: all .5s cubic-bezier(.55, 0, .1, 1);
+    font-size: 14px;
+    color: #606266;
+    line-height: 1.8;
+    margin-top: 5px;
+    position: relative;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    border-radius: 4px;
+    width: 100%;
+  }
+
+  .el-upload-list__item-name {
+    color: #606266;
+    display: block;
+    margin-right: 40px;
+    overflow: hidden;
+    padding-left: 4px;
+    text-overflow: ellipsis;
+    -webkit-transition: color .3s;
+    transition: color .3s;
+    white-space: nowrap;
+  }
+
+  .upload_btn {
+    display: inline-block;
+    margin-right: 20px;
+  }
+
   .status {
     display: inline-block;
     padding-left: 20px;
@@ -331,4 +485,4 @@
   }
 
   .w-upload {}
-</style>
+  </style>

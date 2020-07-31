@@ -1,11 +1,21 @@
 {
-    "name": "demo1",
-    "version": "0.1.0",
-    "private": true,
+    "name": "w-web-uploader",
+    "version": "0.1.2",
+    "private": false,
+    "description": "基于Vue,ElementUi,webuploader 开发的分片上传插件",
+    "main": "lib/vue-webUpload.umd.min.js",
+    "license": "MIT",
+    "author": "wuxudong",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/calamus0427/calamus-vue-music.git"
+    },
+    "keywords": ["vue", "webuploader"],
     "scripts": {
         "dev": "vue-cli-service serve",
         "build": "vue-cli-service build",
-        "lint": "vue-cli-service lint"
+        "lint": "vue-cli-service lint",
+        "lib": "vue-cli-service build --target lib --name vue-webUpload --dest lib packages/index.js"
     },
     "dependencies": {
         "element-ui": "^2.13.1",
