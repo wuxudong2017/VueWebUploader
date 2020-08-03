@@ -4,12 +4,11 @@
     checkUrl="/storage/fdfs/checkFile" 
     uploadUrl="/storage/fdfs/batchPeaceUpload"
      tip="请选择上传的文件,大小500M以内"
-     :headers="{ 'Authorization': 'Bearer 6adb8473-851a-4dbf-8c5d-e8ac0e04ef2c'}"
+     :headers="{ 'Authorization': 'Bearer 2741145f-0065-4e37-9e24-a6d42ca22254'}"
       :auto-upload="true" 
-      :size-limit="1*1024*1024" 
+      :size-limit="500*1024*1024" 
       :chunk-size="1*1024*1024" 
       :on-success="uploadSuccess"
-      :on-remove="uploadRemove" 
       :file-list="fileList"></VueWebUpload>
   </div>
 </template>
