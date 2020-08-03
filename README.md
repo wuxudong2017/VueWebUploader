@@ -54,6 +54,8 @@ msg: "文件已经上传"
 | on-success  | 文件上传成功时的钩子 | function(response, file, fileList) | — | — |
 | on-complete  | 文件上传完成后的钩子 | function(file, fileList) | — | — |
 | on-remove  | 文件移除的时候 | function(file, fileList)  | — | — |
+| on-remove  | 文件移除的时候 | function(file, fileList)  | — | — |
+| on-change | 添加文件时的钩子函数,文件添加上传队列前 | function(file, fileList)  | — | — |
 | file-list  | 上传的文件列表 | Array  | — | — |
 | limit  | 最大允许上传个数 | Number  | — | 10 |
 

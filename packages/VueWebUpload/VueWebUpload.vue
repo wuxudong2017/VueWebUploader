@@ -100,6 +100,11 @@
         type: Function,
         required: false,
         default: noop
+      },
+      onChange: {
+        type: Function,
+        required: false,
+        default: noop
       }
     },
     mounted() {
@@ -244,6 +249,7 @@
       w_init() {
         // 当有文件添加对内
         this.uploader.on('beforeFileQueued', function (file) {
+          this.onChange(file,this.fileList)
           if (this.fileList.length < this.limit) {
             if (this.getAccept(this.accept).exteensions) {
               if (this.getAccept(this.accept).exteensions.indexOf(file.ext) > -1) {
@@ -261,18 +267,6 @@
           }
 
         }.bind(this))
-        // 文件添加队列前
-        this.uploader.on("fileQueued", function (file) {
-          if (this.fileList.length > this.limit) {
-            this.$message({
-              type: 'error',
-              message: '超出上传文件限制'
-            })
-            return false;
-          }
-          return true;
-        }.bind(this))
-
         // 当有文件被添加进队列的时候
         this.uploader.on("fileQueued", function (file) {
           console.log("fileQueued");
