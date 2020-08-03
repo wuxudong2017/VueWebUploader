@@ -1,5 +1,13 @@
 module.exports = {
     lintOnSave: false,
+    pages: {
+        // 将 examples 目录添加为新的页面
+        index: {
+            entry: 'examples/main.js',
+            template: 'public/index.html',
+            filename: 'index.html'
+        }
+    },
     devServer: { // 开发环境下的配置
         open: true,
         // host: "localhost",
